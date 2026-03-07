@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "769232468896",
+    "project_id": "psycare-b901a",
+    "storage_bucket": "psycare-b901a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:769232468896:android:7b176e9bdf558faf2442c5",
+        "android_client_info": {
+          "package_name": "com.university.psycare"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCtJykUShe4laKw_N84xaptZCO6odm4bIg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
