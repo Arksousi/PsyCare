@@ -9,7 +9,7 @@ class TherapistProfile {
   final String name;
   final double rating;
   final int ratingCount;
-  final String locationText; // "Jordan, Amman"
+  final String locationText; // "Jordan, Amma"
   final String phoneNumber;
   final String locationUrl; // link
   final List<String> qualifications;
