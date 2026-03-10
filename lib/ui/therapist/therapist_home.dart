@@ -1,9 +1,8 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'create_slot_page.dart';
 import 'my_slots_page.dart';
 import 'booking_requests_page.dart';
-
+import '../../service/auth_service.dart';
 
 class TherapistHomePage extends StatelessWidget {
   const TherapistHomePage({super.key});
@@ -16,7 +15,7 @@ class TherapistHomePage extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => FirebaseAuth.instance.signOut(),
+            onPressed: () => AuthService().logout(),
           ),
         ],
       ),

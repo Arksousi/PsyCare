@@ -9,7 +9,7 @@ class PsyCareApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = AppSettingsStore.instance;
-//moe ya 7elo
+
     return ValueListenableBuilder<Color>(
       valueListenable: settings.seedColor,
       builder: (context, seed, _) {

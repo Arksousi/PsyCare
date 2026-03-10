@@ -1,24 +1,50 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import '../../service/therapist_service.dart';
 import 'therapist_detail_page.dart';
 
-class TherapistListPage extends StatelessWidget {
+class TherapistListPage extends StatefulWidget {
   const TherapistListPage({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final q = FirebaseFirestore.instance.collection('therapists');
+  State<TherapistListPage> createState() => _TherapistListPageState();
+}
 
+class _TherapistListPageState extends State<TherapistListPage> {
+  final _therapistService = TherapistService();
+  late Future<List<dynamic>> _therapistsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchTherapists();
+  }
+
+  void _fetchTherapists() {
+    setState(() {
+      _therapistsFuture = _therapistService.getTherapists();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Therapists')),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: q.snapshots(),
+      appBar: AppBar(
+        title: const Text('Therapists'),
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _fetchTherapists),
+        ],
+      ),
+      body: FutureBuilder<List<dynamic>>(
+        future: _therapistsFuture,
         builder: (context, snap) {
-          if (!snap.hasData) {
+          if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
+          if (snap.hasError) {
+            return Center(child: Text('Error: ${snap.error}'));
+          }
 
-          final docs = snap.data!.docs;
+          final docs = snap.data ?? [];
           if (docs.isEmpty) {
             return const Center(child: Text('No therapists yet'));
           }
@@ -27,8 +53,7 @@ class TherapistListPage extends StatelessWidget {
             itemCount: docs.length,
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, i) {
-              final d = docs[i];
-              final data = d.data();
+              final data = docs[i];
 
               return ListTile(
                 leading: const CircleAvatar(child: Icon(Icons.person)),
@@ -39,11 +64,12 @@ class TherapistListPage extends StatelessWidget {
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 onTap: () {
+                  // Adjust TherapistDetailPage to use standard Maps not DocumentSnapshot data
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (_) => TherapistDetailPage(
-                        therapistId: d.id,
+                        therapistId: data['_id'],
                         therapistData: data,
                       ),
                     ),

@@ -1,6 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../../service/auth_service.dart';
+import '../../models/enums.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -33,46 +33,14 @@ class _SignupPageState extends State<SignupPage> {
     });
 
     try {
-      // 1) Create Firebase Auth user
-      final cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+      await AuthService().signUpEmailPassword(
         email: _email.text.trim(),
         password: _password.text,
+        fullName: _name.text.trim(),
+        role: UserRoleX.fromString(_role),
       );
 
-      final uid = cred.user!.uid;
-
-      // 2) Create Firestore profile in ONE atomic batch
-      final db = FirebaseFirestore.instance;
-      final batch = db.batch();
-
-      // users/{uid}
-      batch.set(db.collection('users').doc(uid), {
-        'fullName': _name.text.trim(),
-        'email': _email.text.trim(),
-        'role': _role, // 'patient' or 'therapist'
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-
-      // If therapist -> also create therapists/{uid}
-      if (_role == 'therapist') {
-        batch.set(db.collection('therapists').doc(uid), {
-          'fullName': _name.text.trim(),
-          'ratingAvg': 0.0,
-          'ratingCount': 0,
-          'locationText': 'Jordan, Amman',
-          'locationUrl': 'https://maps.google.com/?q=Amman+Jordan',
-          'bio': '',
-          'specialties': <String>[],
-          'therapiesCount': 0,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      }
-
-      await batch.commit();
-
       if (mounted) Navigator.pop(context); // back to login
-    } on FirebaseAuthException catch (e) {
-      setState(() => _error = e.message ?? e.code);
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {

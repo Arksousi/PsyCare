@@ -1,6 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../../service/booking_service.dart';
+import '../../service/auth_service.dart';
 
 class CreateSlotPage extends StatefulWidget {
   const CreateSlotPage({super.key});
@@ -16,6 +16,8 @@ class _CreateSlotPageState extends State<CreateSlotPage> {
 
   bool _loading = false;
   String? _error;
+
+  final _bookingService = BookingService();
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
@@ -49,7 +51,7 @@ class _CreateSlotPageState extends State<CreateSlotPage> {
   }
 
   Future<void> _createSlot() async {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = AuthService().currentUser;
     if (user == null) {
       setState(() => _error = 'Not logged in.');
       return;
@@ -73,30 +75,7 @@ class _CreateSlotPageState extends State<CreateSlotPage> {
     });
 
     try {
-      // Optional: prevent duplicates (same therapist, same startAt)
-      final db = FirebaseFirestore.instance;
-
-      // Query existing slot with same therapistId + startAt
-      final existing = await db
-          .collection('therapistSlots')
-          .where('therapistId', isEqualTo: user.uid)
-          .where('startAt', isEqualTo: Timestamp.fromDate(startAt))
-          .limit(1)
-          .get();
-
-      if (existing.docs.isNotEmpty) {
-        throw StateError('You already created a slot at this start time.');
-      }
-
-      await db.collection('therapistSlots').add({
-        'therapistId': user.uid,
-        'startAt': Timestamp.fromDate(startAt),
-        'endAt': Timestamp.fromDate(endAt),
-        'status': 'available',
-        'patientId': null,
-        'bookingId': null,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      await _bookingService.createSlot(startAt, endAt);
 
       if (!mounted) return;
       Navigator.pop(context); // back to therapist home

@@ -1,13 +1,33 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../../service/booking_service.dart';
+import '../../service/auth_service.dart';
 
-class MySlotsPage extends StatelessWidget {
+class MySlotsPage extends StatefulWidget {
   const MySlotsPage({super.key});
 
   @override
+  State<MySlotsPage> createState() => _MySlotsPageState();
+}
+
+class _MySlotsPageState extends State<MySlotsPage> {
+  final _bookingService = BookingService();
+  late Future<List<dynamic>> _slotsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _slotsFuture = _bookingService.getMySlots();
+  }
+
+  void _refresh() {
+    setState(() {
+      _slotsFuture = _bookingService.getMySlots();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = AuthService().currentUser;
 
     if (user == null) {
       return const Scaffold(
@@ -15,33 +35,35 @@ class MySlotsPage extends StatelessWidget {
       );
     }
 
-    final q = FirebaseFirestore.instance
-        .collection('therapistSlots')
-        .where('therapistId', isEqualTo: user.uid)
-        .orderBy('startAt', descending: false);
-
     return Scaffold(
-      appBar: AppBar(title: const Text('My Slots')),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: q.snapshots(),
+      appBar: AppBar(
+        title: const Text('My Slots'),
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _refresh),
+        ],
+      ),
+      body: FutureBuilder<List<dynamic>>(
+        future: _slotsFuture,
         builder: (context, snap) {
-          if (!snap.hasData) {
+          if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          final docs = snap.data!.docs;
-          if (docs.isEmpty) {
+          if (snap.hasError) {
+            return Center(child: Text('Error: ${snap.error}'));
+          }
+          final slots = snap.data ?? [];
+          if (slots.isEmpty) {
             return const Center(child: Text('No slots yet.'));
           }
 
           return ListView.separated(
-            itemCount: docs.length,
+            itemCount: slots.length,
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (context, i) {
-              final doc = docs[i];
-              final d = doc.data();
-              final start = (d['startAt'] as Timestamp).toDate();
-              final end = (d['endAt'] as Timestamp).toDate();
-              final status = (d['status'] as String?) ?? '';
+              final d = slots[i];
+              final start = DateTime.parse(d['startAt']).toLocal();
+              final end = DateTime.parse(d['endAt']).toLocal();
+              final status = d['status'] ?? '';
 
               String two(int x) => x.toString().padLeft(2, '0');
               final label =

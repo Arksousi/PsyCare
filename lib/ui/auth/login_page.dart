@@ -1,7 +1,6 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-
 import 'signup_page.dart';
+import '../../service/auth_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -30,13 +29,11 @@ class _LoginPageState extends State<LoginPage> {
     });
 
     try {
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      await AuthService().loginEmailPassword(
         email: _email.text.trim(),
         password: _password.text,
       );
       // AuthGate will redirect automatically
-    } on FirebaseAuthException catch (e) {
-      setState(() => _error = e.message ?? e.code);
     } catch (e) {
       setState(() => _error = e.toString());
     } finally {

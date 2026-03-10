@@ -1,8 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-
 import '../../service/booking_service.dart';
+import '../../service/auth_service.dart';
 
 class BookingRequestsPage extends StatefulWidget {
   const BookingRequestsPage({super.key});
@@ -13,26 +11,21 @@ class BookingRequestsPage extends StatefulWidget {
 
 class _BookingRequestsPageState extends State<BookingRequestsPage> {
   final _bookingService = BookingService();
-  bool _cleanedUp = false;
   bool _busy = false;
-
-  User? get _me => FirebaseAuth.instance.currentUser;
+  late Future<List<dynamic>> _requestsFuture;
 
   @override
   void initState() {
     super.initState();
-    _runCleanupOnce();
+    _fetchRequests();
   }
 
-  Future<void> _runCleanupOnce() async {
-    // Option B (this semester): expire old reservations when therapist opens the page
-    try {
-      await _bookingService.cleanupExpiredReservations(limit: 30);
-    } catch (_) {
-      // Ignore cleanup errors (don't block UI)
-    } finally {
-      if (mounted) setState(() => _cleanedUp = true);
-    }
+  void _fetchRequests() {
+    setState(() {
+      _requestsFuture = _bookingService.getMyBookings().then((bookings) {
+        return bookings.where((b) => b['status'] == 'pending').toList();
+      });
+    });
   }
 
   Future<void> _accept(String bookingId) async {
@@ -40,14 +33,11 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
     try {
       await _bookingService.therapistAcceptBooking(bookingId: bookingId);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Accepted ✅')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Accepted ✅')));
+      _fetchRequests();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Accept failed: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Accept failed: $e')));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -58,22 +48,19 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
     try {
       await _bookingService.therapistRejectBooking(bookingId: bookingId);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Rejected ✅')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Rejected ✅')));
+      _fetchRequests();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Reject failed: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Reject failed: $e')));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
-  String _formatRange(Timestamp startTs, Timestamp endTs) {
-    final s = startTs.toDate();
-    final e = endTs.toDate();
+  String _formatRange(String startStr, String endStr) {
+    final s = DateTime.parse(startStr).toLocal();
+    final e = DateTime.parse(endStr).toLocal();
     String two(int x) => x.toString().padLeft(2, '0');
     final date = '${s.year}-${two(s.month)}-${two(s.day)}';
     final start = '${two(s.hour)}:${two(s.minute)}';
@@ -83,38 +70,31 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final me = _me;
-    if (me == null) {
+    if (AuthService().currentUser == null) {
       return const Scaffold(body: Center(child: Text('Not logged in')));
     }
 
-    final q = FirebaseFirestore.instance
-        .collection('bookings')
-        .where('therapistId', isEqualTo: me.uid)
-        .where(
-          'status',
-          isEqualTo: 'pending',
-        ) // matches your BookingStatus.pending
-        .orderBy('createdAt', descending: true);
-
     return Scaffold(
-      appBar: AppBar(title: const Text('Booking Requests')),
+      appBar: AppBar(
+        title: const Text('Booking Requests'),
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _fetchRequests),
+        ],
+      ),
       body: Column(
         children: [
-          if (!_cleanedUp)
-            const Padding(
-              padding: EdgeInsets.all(12),
-              child: Text('Checking expired reservations...'),
-            ),
           Expanded(
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: q.snapshots(),
+            child: FutureBuilder<List<dynamic>>(
+              future: _requestsFuture,
               builder: (context, snap) {
-                if (!snap.hasData) {
+                if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
+                if (snap.hasError) {
+                  return Center(child: Text('Error: ${snap.error}'));
+                }
 
-                final docs = snap.data!.docs;
+                final docs = snap.data ?? [];
                 if (docs.isEmpty) {
                   return const Center(child: Text('No pending requests.'));
                 }
@@ -123,12 +103,14 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
                   itemCount: docs.length,
                   separatorBuilder: (_, __) => const Divider(height: 1),
                   itemBuilder: (context, i) {
-                    final doc = docs[i];
-                    final d = doc.data();
+                    final d = docs[i];
 
-                    final patientId = (d['patientId'] as String?) ?? '';
-                    final startAt = d['startAt'] as Timestamp?;
-                    final endAt = d['endAt'] as Timestamp?;
+                    final patientInfo = d['patientId'] is Map 
+                        ? d['patientId']['fullName'] 
+                        : (d['patientId'] ?? '');
+                        
+                    final startAt = d['startAt'];
+                    final endAt = d['endAt'];
 
                     final timeLabel = (startAt != null && endAt != null)
                         ? _formatRange(startAt, endAt)
@@ -136,17 +118,17 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
 
                     return ListTile(
                       title: Text(timeLabel),
-                      subtitle: Text('Patient: $patientId'),
+                      subtitle: Text('Patient: $patientInfo'),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           TextButton(
-                            onPressed: _busy ? null : () => _reject(doc.id),
+                            onPressed: _busy ? null : () => _reject(d['_id']),
                             child: const Text('Reject'),
                           ),
                           const SizedBox(width: 8),
                           ElevatedButton(
-                            onPressed: _busy ? null : () => _accept(doc.id),
+                            onPressed: _busy ? null : () => _accept(d['_id']),
                             child: const Text('Accept'),
                           ),
                         ],
